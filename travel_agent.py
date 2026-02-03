@@ -37,7 +37,7 @@ class CognitiveServicesCredential:
     """Wrapper credential that requests tokens with Cognitive Services scope."""
     
     def __init__(self):
-        self._credential = AzureCliCredential()
+        self._credential = DefaultAzureCredential()
     
     def get_token(self, *scopes, **kwargs):
         # Override scopes to always use Cognitive Services
