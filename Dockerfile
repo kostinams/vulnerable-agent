@@ -10,10 +10,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY travel_agent.py .
+COPY templates/ templates/
 
 # Set environment variables (override at runtime)
 ENV AZURE_INFERENCE_ENDPOINT="" \
-    AZURE_INFERENCE_MODEL="gpt-5-mini"
+    AZURE_INFERENCE_MODEL="gpt-4o"
 
-# Run the application
+# Expose port 5000
+EXPOSE 5000
+
+# Run the web application
 CMD ["python", "travel_agent.py"]

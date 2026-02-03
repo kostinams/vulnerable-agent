@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧭 AI Travel Planner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+        
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+        
+        .tagline {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            margin-bottom: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        
+        input, textarea, select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        .row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+        
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            display: none;
+        }
+        
+        .loading.active {
+            display: block;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .result {
+            display: none;
+        }
+        
+        .result.active {
+            display: block;
+        }
+        
+        .itinerary {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+        
+        .details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .detail-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .detail-card h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1rem;
+        }
+        
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #c33;
+            display: none;
+        }
+        
+        .error.active {
+            display: block;
+        }
+        
+        .steps {
+            margin: 20px 0;
+        }
+        
+        .step {
+            padding: 10px;
+            margin: 10px 0;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .step-title {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧭 AI Travel Planner</h1>
+            <p class="tagline">Let our AI agents craft your perfect trip</p>
+        </header>
+        
+        <div class="card">
+            <form id="travelForm">
+                <div class="form-group">
+                    <label for="request">✈️ Tell us about your dream trip</label>
+                    <textarea 
+                        id="request" 
+                        name="request" 
+                        placeholder="Example: We're planning a long-weekend trip to Paris from Seattle next month. We'd love a boutique hotel, business-class flights and memorable activities."
+                        required
+                    ></textarea>
+                </div>
+                
+                <div class="row">
+                    <div class="form-group">
+                        <label for="origin">🏠 Origin (optional)</label>
+                        <input type="text" id="origin" name="origin" placeholder="Seattle">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="destination">🌍 Destination (optional)</label>
+                        <input type="text" id="destination" name="destination" placeholder="Paris">
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="form-group">
+                        <label for="departure">📅 Departure Date (optional)</label>
+                        <input type="date" id="departure" name="departure">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="return_date">📅 Return Date (optional)</label>
+                        <input type="date" id="return_date" name="return_date">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="travellers">👥 Number of Travellers</label>
+                        <input type="number" id="travellers" name="travellers" value="2" min="1" max="20">
+                    </div>
+                </div>
+                
+                <button type="submit" id="submitBtn">Plan My Trip</button>
+            </form>
+            
+            <div class="error" id="error"></div>
+            
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Our AI agents are working on your perfect itinerary...</p>
+            </div>
+        </div>
+        
+        <div class="card result" id="result">
+            <h2>🎉 Your Custom Itinerary</h2>
+            
+            <div class="details-grid" id="detailsGrid"></div>
+            
+            <div class="steps" id="steps" style="display: none;">
+                <h3>Agent Activity</h3>
+                <div id="stepsContainer"></div>
+            </div>
+            
+            <div class="itinerary" id="itinerary"></div>
+            
+            <button onclick="location.reload()" style="margin-top: 20px;">Plan Another Trip</button>
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('travelForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = {
+                request: document.getElementById('request').value,
+                origin: document.getElementById('origin').value || null,
+                destination: document.getElementById('destination').value || null,
+                departure: document.getElementById('departure').value || null,
+                return_date: document.getElementById('return_date').value || null,
+                travellers: parseInt(document.getElementById('travellers').value) || 2
+            };
+            
+            // Show loading, hide error and result
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('error').classList.remove('active');
+            document.getElementById('result').classList.remove('active');
+            document.getElementById('submitBtn').disabled = true;
+            
+            try {
+                const response = await fetch('/api/plan', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Display results
+                    const detailsHtml = `
+                        <div class="detail-card">
+                            <h3>📍 Route</h3>
+                            <p>${data.details.origin} → ${data.details.destination}</p>
+                        </div>
+                        <div class="detail-card">
+                            <h3>📅 Dates</h3>
+                            <p>${data.details.departure} to ${data.details.return_date}</p>
+                        </div>
+                        <div class="detail-card">
+                            <h3>👥 Travellers</h3>
+                            <p>${data.details.travellers} ${data.details.travellers === 1 ? 'person' : 'people'}</p>
+                        </div>
+                    `;
+                    document.getElementById('detailsGrid').innerHTML = detailsHtml;
+                    
+                    // Display steps if available
+                    if (data.steps && data.steps.length > 0) {
+                        const stepsHtml = data.steps.map(step => `
+                            <div class="step">
+                                <div class="step-title">🤖 ${step.agent}</div>
+                            </div>
+                        `).join('');
+                        document.getElementById('stepsContainer').innerHTML = stepsHtml;
+                    }
+                    
+                    document.getElementById('itinerary').textContent = data.itinerary;
+                    
+                    document.getElementById('result').classList.add('active');
+                } else {
+                    document.getElementById('error').textContent = data.error || 'An error occurred';
+                    document.getElementById('error').classList.add('active');
+                }
+            } catch (error) {
+                document.getElementById('error').textContent = 'Failed to connect to the server: ' + error.message;
+                document.getElementById('error').classList.add('active');
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+                document.getElementById('submitBtn').disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

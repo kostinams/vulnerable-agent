@@ -10,6 +10,8 @@ from typing import Annotated, Any, List, Optional, Sequence, TypedDict
 from urllib.parse import urlparse
 from uuid import uuid4
 
+from flask import Flask, request, jsonify, render_template, send_from_directory
+
 from dotenv import load_dotenv
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider, AzureCliCredential
 from azure.core.credentials import AzureKeyCredential, TokenCredential
@@ -31,6 +33,8 @@ except ImportError:  # pragma: no cover
 
 
 load_dotenv()
+
+app = Flask(__name__)
 
 
 class CognitiveServicesCredential:
@@ -488,16 +492,17 @@ def build_workflow() -> StateGraph:
     return graph
 
 
-def main() -> None:
+def process_travel_request(user_request: str, origin: str = None, destination: str = None, 
+                           departure: str = None, return_date: str = None, travellers: int = 2) -> dict:
+    """Process a travel request and return the itinerary."""
     session_id = str(uuid4())
-    user_request = (
-        "We're planning a long-weekend trip to Paris from Seattle next month. "
-        "We'd love a boutique hotel, business-class flights and memorable activities."
-    )
 
-    origin = _pick_origin(user_request)
-    destination = _pick_destination(user_request)
-    departure, return_date = _compute_dates()
+    if not origin:
+        origin = _pick_origin(user_request)
+    if not destination:
+        destination = _pick_destination(user_request)
+    if not departure or not return_date:
+        departure, return_date = _compute_dates()
 
     initial_state: PlannerState = {
         "messages": [HumanMessage(content=user_request)],
@@ -507,7 +512,7 @@ def main() -> None:
         "destination": destination,
         "departure": departure,
         "return_date": return_date,
-        "travellers": 2,
+        "travellers": travellers,
         "flight_summary": None,
         "hotel_summary": None,
         "activities_summary": None,
@@ -516,7 +521,7 @@ def main() -> None:
     }
 
     workflow = build_workflow()
-    app = workflow.compile()
+    graph_app = workflow.compile()
     config = {
         "configurable": {"thread_id": session_id},
         "metadata": {
@@ -526,28 +531,124 @@ def main() -> None:
         "recursion_limit": 10,
     }
 
-    print("🧭 Nested Agent Travel Planner")
-    print("=" * 60)
-
     final_state: Optional[PlannerState] = None
+    steps = []
 
-    for step in app.stream(initial_state, config=config):
+    for step in graph_app.stream(initial_state, config=config):
         node_name, node_state = next(iter(step.items()))
         final_state = node_state
-        print(f"\n🤖 {node_name.replace('_', ' ').title()} Agent")
+        
+        step_info = {
+            "agent": node_name.replace('_', ' ').title(),
+            "message": ""
+        }
+        
         if node_state.get("messages"):
             last = node_state["messages"][-1]
             if isinstance(last, BaseMessage):
-                preview = last.content
-                if len(preview) > 400:
-                    preview = preview[:400] + "... [truncated]"
-                print(preview)
+                step_info["message"] = last.content
+        
+        steps.append(step_info)
 
     final_plan = (final_state or {}).get("final_itinerary") or ""
-    if final_plan:
+    
+    return {
+        "success": True,
+        "session_id": session_id,
+        "itinerary": final_plan,
+        "flight_summary": final_state.get("flight_summary") if final_state else None,
+        "hotel_summary": final_state.get("hotel_summary") if final_state else None,
+        "activities_summary": final_state.get("activities_summary") if final_state else None,
+        "steps": steps,
+        "details": {
+            "origin": origin,
+            "destination": destination,
+            "departure": departure,
+            "return_date": return_date,
+            "travellers": travellers
+        }
+    }
+
+
+@app.route('/')
+def index():
+    """Serve the main page."""
+    return render_template('index.html')
+
+
+@app.route('/api/plan', methods=['POST'])
+def plan_trip():
+    """API endpoint to plan a trip."""
+    try:
+        data = request.get_json()
+        user_request = data.get('request', '')
+        
+        if not user_request:
+            return jsonify({
+                "success": False,
+                "error": "Please provide a travel request"
+            }), 400
+        
+        origin = data.get('origin')
+        destination = data.get('destination')
+        departure = data.get('departure')
+        return_date = data.get('return_date')
+        travellers = data.get('travellers', 2)
+        
+        result = process_travel_request(
+            user_request,
+            origin=origin,
+            destination=destination,
+            departure=departure,
+            return_date=return_date,
+            travellers=travellers
+        )
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/destinations', methods=['GET'])
+def get_destinations():
+    """Get available destinations."""
+    return jsonify({
+        "destinations": [{
+            "name": name.title(),
+            "country": info["country"],
+            "airport": info["airport"],
+            "currency": info["currency"]
+        } for name, info in DESTINATIONS.items()]
+    })
+
+
+def main() -> None:
+    """CLI version for testing."""
+    session_id = str(uuid4())
+    user_request = (
+        "We're planning a long-weekend trip to Paris from Seattle next month. "
+        "We'd love a boutique hotel, business-class flights and memorable activities."
+    )
+
+    print("🧭 Nested Agent Travel Planner")
+    print("=" * 60)
+    
+    result = process_travel_request(user_request)
+    
+    if result["success"]:
         print("\n🎉 Final itinerary\n" + "-" * 40)
-        print(final_plan)
+        print(result["itinerary"])
+    else:
+        print(f"Error: {result.get('error')}")
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "--cli":
+        main()
+    else:
+        app.run(host='0.0.0.0', port=5000, debug=True)
